@@ -20,30 +20,32 @@ export default function Room({ user }) {
 
   // SOCKET
   useEffect(() => {
+    if (!roomId) return;
+
     socket.emit("join_room", roomId);
 
-    const handleReceiveCode = (incoming) => {
+    const handleCode = (incoming) => {
       setCode(incoming);
     };
 
-    const handleReceiveMsg = (msg) => {
+    const handleMsg = (msg) => {
       setChat((prev) => [...prev, msg]);
     };
 
-    socket.on("receive_code", handleReceiveCode);
-    socket.on("receive_message", handleReceiveMsg);
+    const handleOutput = (out) => {
+      setOutput(out);
+    };
+
+    socket.on("receive_code", handleCode);
+    socket.on("receive_message", handleMsg);
+    socket.on("receive_output", handleOutput);
 
     return () => {
-      socket.off("receive_code", handleReceiveCode);
-      socket.off("receive_message", handleReceiveMsg);
+      socket.off("receive_code", handleCode);
+      socket.off("receive_message", handleMsg);
+      socket.off("receive_output", handleOutput);
     };
   }, [roomId]);
-
-  useEffect(() => {
-    console.log("Joining room:", roomId);
-    socket.emit("join_room", roomId);
-  }, [roomId]);
-
   // AUTO SCROLL
   useEffect(() => {
     chatRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -65,13 +67,9 @@ export default function Room({ user }) {
     };
 
     socket.emit("send_message", { roomId, msg });
-
-    // 👇 ADD THIS BACK (you removed earlier)
     setChat((prev) => [...prev, msg]);
-
     setMessage("");
   };
-
   // RUN CODE
   const run = async () => {
     if (!code.trim()) return;
@@ -88,7 +86,13 @@ export default function Room({ user }) {
       });
 
       const data = await res.json();
+
       setOutput(data.output);
+
+      socket.emit("send_output", {
+        roomId,
+        output: data.output,
+      });
     } catch {
       setOutput("Error running code");
     }

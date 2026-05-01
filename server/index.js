@@ -11,12 +11,7 @@ const server = http.createServer(app);
 
 initSocket(server);
 
-app.use(
-  cors({
-    origin: "http://localhost:3000",
-  }),
-);
-
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 
 const DIR = path.join(__dirname, "temp");
@@ -61,7 +56,7 @@ app.post("/run", (req, res) => {
       return res.json({ output: "Language not supported" });
     }
 
-    exec(cmd, { timeout: 3000 }, (err, stdout, stderr) => {
+    exec(cmd, { timeout: 5000 }, (err, stdout, stderr) => {
       if (file) fs.unlink(file, () => {});
 
       if (err) return res.json({ output: err.message });
@@ -69,10 +64,11 @@ app.post("/run", (req, res) => {
 
       res.json({ output: stdout || "No Output" });
     });
-  } catch {
+  } catch (e) {
     res.json({ output: "Execution error" });
   }
 });
 
-const PORT = 5000;
-server.listen(PORT, () => console.log("Server running on 5000"));
+server.listen(5000, () => {
+  console.log("🚀 Server running on 5000");
+});
