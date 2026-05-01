@@ -1,3 +1,4 @@
+// KEEP IMPORTS SAME
 import { useEffect, useRef, useState } from "react";
 import { socket } from "../socket";
 import { useParams, useNavigate } from "react-router-dom";
@@ -9,84 +10,96 @@ export default function Room({ user }) {
   const { roomId } = useParams();
   const navigate = useNavigate();
 
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(
+    localStorage.getItem(`code-${roomId}`) || "",
+  );
   const [language, setLanguage] = useState("javascript");
   const [output, setOutput] = useState("");
 
   const [chat, setChat] = useState([]);
   const [message, setMessage] = useState("");
 
+  const [users, setUsers] = useState([]);
+  const [typingUser, setTypingUser] = useState("");
+
+  const [running, setRunning] = useState(false);
+
   const chatRef = useRef();
 
-  // SOCKET
+  // JOIN ROOM
   useEffect(() => {
     if (!roomId) return;
 
-    socket.emit("join_room", roomId);
+    socket.emit("join_room", {
+      roomId,
+      name: user?.displayName || "User",
+    });
 
-    const handleCode = (incoming) => {
-      setCode(incoming);
-    };
-
-    const handleMsg = (msg) => {
-      setChat((prev) => [...prev, msg]);
-    };
-
-    const handleOutput = (out) => {
-      setOutput(out);
-    };
-
-    socket.on("receive_code", handleCode);
-    socket.on("receive_message", handleMsg);
-    socket.on("receive_output", handleOutput);
+    socket.on("receive_code", setCode);
+    socket.on("receive_message", (msg) => setChat((prev) => [...prev, msg]));
+    socket.on("receive_output", setOutput);
+    socket.on("users_update", setUsers);
+    socket.on("user_typing", (name) => {
+      setTypingUser(name);
+      setTimeout(() => setTypingUser(""), 1500);
+    });
 
     return () => {
-      socket.off("receive_code", handleCode);
-      socket.off("receive_message", handleMsg);
-      socket.off("receive_output", handleOutput);
+      socket.off("receive_code");
+      socket.off("receive_message");
+      socket.off("receive_output");
+      socket.off("users_update");
+      socket.off("user_typing");
     };
   }, [roomId]);
-  // AUTO SCROLL
+
+  // SAVE CODE
+  useEffect(() => {
+    localStorage.setItem(`code-${roomId}`, code);
+  }, [code]);
+
+  // SCROLL CHAT
   useEffect(() => {
     chatRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat]);
 
-  // CODE CHANGE
   const handleCode = (val) => {
-    const v = val || "";
-    setCode(v);
-    socket.emit("send_code", { roomId, code: v });
+    setCode(val);
+    socket.emit("send_code", { roomId, code: val });
   };
-  // CHAT
+
   const sendMsg = () => {
     if (!message.trim()) return;
 
     const msg = {
       text: message,
-      name: user?.displayName || "User",
+      name: user?.displayName,
     };
 
     socket.emit("send_message", { roomId, msg });
     setChat((prev) => [...prev, msg]);
     setMessage("");
   };
-  // RUN CODE
-  const run = async () => {
-    if (!code.trim()) return;
 
+  const handleTyping = () => {
+    socket.emit("typing", {
+      roomId,
+      name: user?.displayName,
+    });
+  };
+
+  const run = async () => {
+    setRunning(true);
     setOutput("Running...");
 
     try {
       const res = await fetch("http://localhost:5000/run", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, language }),
       });
 
       const data = await res.json();
-
       setOutput(data.output);
 
       socket.emit("send_output", {
@@ -96,15 +109,30 @@ export default function Room({ user }) {
     } catch {
       setOutput("Error running code");
     }
+
+    setRunning(false);
   };
 
-  // EXIT ROOM
+  const copyRoom = () => {
+    navigator.clipboard.writeText(roomId);
+    alert("Room ID copied!");
+  };
+
+  const downloadCode = () => {
+    const blob = new Blob([code], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `code.${language}`;
+    a.click();
+  };
+
+  const clearOutput = () => setOutput("");
+
   const handleExitRoom = () => {
     socket.emit("leave_room", roomId);
     navigate("/");
   };
 
-  // LOGOUT
   const handleLogout = async () => {
     await signOut(auth);
     socket.emit("leave_room", roomId);
@@ -113,229 +141,79 @@ export default function Room({ user }) {
 
   return (
     <div style={styles.container}>
-      {/* LEFT PANEL */}
       <div style={styles.left}>
-        {/* HEADER */}
         <div style={styles.header}>
           <div>
-            <h3 style={{ margin: 0 }}>Room: {roomId}</h3>
-            <small style={{ color: "#9ca3af" }}>{user?.displayName}</small>
+            <h3>Room: {roomId}</h3>
+            <small>{user?.displayName}</small>
+            <div>👥 {users.length} users</div>
           </div>
 
           <div style={styles.controls}>
+            <button onClick={copyRoom}>Copy</button>
+
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              style={styles.select}
             >
               <option value="javascript">JS</option>
               <option value="python">Python</option>
               <option value="cpp">C++</option>
-              <option value="c">C</option>
               <option value="java">Java</option>
-              <option value="typescript">TS</option>
             </select>
 
-            <button onClick={run} style={styles.runBtn}>
-              ▶ Run
-            </button>
+            <button onClick={run}>{running ? "Running..." : "Run"}</button>
 
-            <button onClick={handleExitRoom} style={styles.exitBtn}>
-              Exit
-            </button>
+            <button onClick={downloadCode}>Download</button>
+            <button onClick={clearOutput}>Clear</button>
 
-            <button onClick={handleLogout} style={styles.logoutBtn}>
-              Logout
-            </button>
+            <button onClick={handleExitRoom}>Exit</button>
+            <button onClick={handleLogout}>Logout</button>
           </div>
         </div>
 
-        {/* EDITOR */}
-        <div style={styles.editor}>
-          <CodeEditor code={code} setCode={handleCode} language={language} />
-        </div>
+        <CodeEditor code={code} setCode={handleCode} language={language} />
 
-        {/* OUTPUT */}
         <div style={styles.output}>
-          <div style={styles.outputHeader}>Output</div>
-          <pre style={styles.outputText}>{output}</pre>
+          <pre>{output}</pre>
         </div>
       </div>
 
-      {/* CHAT PANEL */}
       <div style={styles.chat}>
-        <div style={styles.chatHeader}>💬 Chat</div>
+        <div>💬 Chat</div>
 
         <div style={styles.chatBody}>
           {chat.map((c, i) => (
-            <div key={i} style={styles.message}>
-              <span style={styles.name}>{c.name}</span>
-              <span style={styles.text}>{c.text}</span>
+            <div key={i}>
+              <b>{c.name}</b>: {c.text}
             </div>
           ))}
+          {typingUser && <i>{typingUser} typing...</i>}
           <div ref={chatRef} />
         </div>
 
         <div style={styles.chatInput}>
           <input
-            style={styles.input}
             value={message}
-            placeholder="Type message..."
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={(e) => {
+              setMessage(e.target.value);
+              handleTyping();
+            }}
           />
-          <button style={styles.sendBtn} onClick={sendMsg}>
-            Send
-          </button>
+          <button onClick={sendMsg}>Send</button>
         </div>
       </div>
     </div>
   );
 }
 
-// STYLES
 const styles = {
-  container: {
-    display: "flex",
-    height: "100vh",
-    background: "#0f172a",
-    color: "white",
-    fontFamily: "sans-serif",
-  },
-
-  left: {
-    flex: 3,
-    display: "flex",
-    flexDirection: "column",
-  },
-
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "10px 20px",
-    background: "#020617",
-    borderBottom: "1px solid #1f2937",
-  },
-
-  controls: {
-    display: "flex",
-    gap: 10,
-  },
-
-  select: {
-    padding: "6px 10px",
-    borderRadius: 6,
-    background: "#111827",
-    color: "white",
-    border: "1px solid #374151",
-  },
-
-  runBtn: {
-    padding: "6px 14px",
-    background: "#22c55e",
-    border: "none",
-    borderRadius: 6,
-    color: "black",
-    cursor: "pointer",
-    fontWeight: "bold",
-  },
-
-  exitBtn: {
-    padding: "6px 12px",
-    background: "#f59e0b",
-    border: "none",
-    borderRadius: 6,
-    color: "black",
-    cursor: "pointer",
-  },
-
-  logoutBtn: {
-    padding: "6px 12px",
-    background: "#ef4444",
-    border: "none",
-    borderRadius: 6,
-    color: "white",
-    cursor: "pointer",
-  },
-
-  editor: {
-    flex: 1,
-  },
-
-  output: {
-    background: "#020617",
-    borderTop: "1px solid #1f2937",
-    padding: 10,
-    height: 150,
-    overflow: "auto",
-  },
-
-  outputHeader: {
-    fontWeight: "bold",
-    marginBottom: 5,
-    color: "#22c55e",
-  },
-
-  outputText: {
-    margin: 0,
-    color: "#22c55e",
-  },
-
-  chat: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    borderLeft: "1px solid #1f2937",
-    background: "#020617",
-  },
-
-  chatHeader: {
-    padding: 10,
-    borderBottom: "1px solid #1f2937",
-    fontWeight: "bold",
-  },
-
-  chatBody: {
-    flex: 1,
-    padding: 10,
-    overflowY: "auto",
-  },
-
-  message: {
-    marginBottom: 8,
-  },
-
-  name: {
-    color: "#60a5fa",
-    marginRight: 5,
-    fontWeight: "bold",
-  },
-
-  text: {
-    color: "#e5e7eb",
-  },
-
-  chatInput: {
-    display: "flex",
-    padding: 10,
-    borderTop: "1px solid #1f2937",
-    gap: 5,
-  },
-
-  input: {
-    flex: 1,
-    padding: 8,
-    borderRadius: 6,
-    border: "none",
-    outline: "none",
-  },
-
-  sendBtn: {
-    padding: "8px 12px",
-    background: "#3b82f6",
-    border: "none",
-    borderRadius: 6,
-    color: "white",
-    cursor: "pointer",
-  },
+  container: { display: "flex", height: "100vh" },
+  left: { flex: 3 },
+  header: { display: "flex", justifyContent: "space-between" },
+  controls: { display: "flex", gap: 8 },
+  output: { height: 150, overflow: "auto" },
+  chat: { flex: 1 },
+  chatBody: { height: "80%", overflow: "auto" },
+  chatInput: { display: "flex" },
 };
