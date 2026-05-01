@@ -3,9 +3,20 @@ const cors = require("cors");
 const { exec } = require("child_process");
 const fs = require("fs");
 const path = require("path");
+const http = require("http");
+const initSocket = require("./socket");
 
 const app = express();
-app.use(cors({ origin: "*" }));
+const server = http.createServer(app);
+
+initSocket(server);
+
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+  }),
+);
+
 app.use(express.json());
 
 const DIR = path.join(__dirname, "temp");
@@ -19,58 +30,38 @@ app.post("/run", (req, res) => {
   let cmd = "";
 
   try {
-    // ---------- JS ----------
     if (language === "javascript") {
       file = path.join(DIR, `code_${id}.js`);
       fs.writeFileSync(file, code);
       cmd = `node "${file}"`;
-    }
-
-    // ---------- PYTHON ----------
-    else if (language === "python") {
+    } else if (language === "python") {
       file = path.join(DIR, `code_${id}.py`);
       fs.writeFileSync(file, code);
       cmd = `python "${file}"`;
-    }
-
-    // ---------- C++ ----------
-    else if (language === "cpp") {
+    } else if (language === "cpp") {
       const exe = path.join(DIR, `code_${id}.exe`);
       file = path.join(DIR, `code_${id}.cpp`);
       fs.writeFileSync(file, code);
       cmd = `g++ "${file}" -o "${exe}" && "${exe}"`;
-    }
-
-    // ---------- C ----------
-    else if (language === "c") {
+    } else if (language === "c") {
       const exe = path.join(DIR, `code_${id}.exe`);
       file = path.join(DIR, `code_${id}.c`);
       fs.writeFileSync(file, code);
       cmd = `gcc "${file}" -o "${exe}" && "${exe}"`;
-    }
-
-    // ---------- JAVA ----------
-    else if (language === "java") {
+    } else if (language === "java") {
       const className = "Main";
       file = path.join(DIR, `${className}.java`);
       fs.writeFileSync(file, code);
-
       cmd = `cd "${DIR}" && javac ${className}.java && java ${className}`;
-    }
-
-    // ---------- TYPESCRIPT ----------
-    else if (language === "typescript") {
+    } else if (language === "typescript") {
       file = path.join(DIR, `code_${id}.ts`);
       fs.writeFileSync(file, code);
       cmd = `npx ts-node "${file}"`;
-    }
-
-    // ---------- DEFAULT ----------
-    else {
+    } else {
       return res.json({ output: "Language not supported" });
     }
 
-    exec(cmd, { timeout: 5000 }, (err, stdout, stderr) => {
+    exec(cmd, { timeout: 3000 }, (err, stdout, stderr) => {
       if (file) fs.unlink(file, () => {});
 
       if (err) return res.json({ output: err.message });
@@ -84,4 +75,4 @@ app.post("/run", (req, res) => {
 });
 
 const PORT = 5000;
-app.listen(PORT, () => console.log("Server running on 5000"));
+server.listen(PORT, () => console.log("Server running on 5000"));

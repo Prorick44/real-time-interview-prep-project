@@ -22,18 +22,26 @@ export default function Room({ user }) {
   useEffect(() => {
     socket.emit("join_room", roomId);
 
-    socket.on("receive_code", (incoming) => {
-      setCode((prev) => (incoming !== prev ? incoming : prev));
-    });
+    const handleReceiveCode = (incoming) => {
+      setCode(incoming);
+    };
 
-    socket.on("receive_message", (msg) => {
+    const handleReceiveMsg = (msg) => {
       setChat((prev) => [...prev, msg]);
-    });
+    };
+
+    socket.on("receive_code", handleReceiveCode);
+    socket.on("receive_message", handleReceiveMsg);
 
     return () => {
-      socket.off("receive_code");
-      socket.off("receive_message");
+      socket.off("receive_code", handleReceiveCode);
+      socket.off("receive_message", handleReceiveMsg);
     };
+  }, [roomId]);
+
+  useEffect(() => {
+    console.log("Joining room:", roomId);
+    socket.emit("join_room", roomId);
   }, [roomId]);
 
   // AUTO SCROLL
@@ -47,7 +55,6 @@ export default function Room({ user }) {
     setCode(v);
     socket.emit("send_code", { roomId, code: v });
   };
-
   // CHAT
   const sendMsg = () => {
     if (!message.trim()) return;
@@ -58,7 +65,10 @@ export default function Room({ user }) {
     };
 
     socket.emit("send_message", { roomId, msg });
+
+    // 👇 ADD THIS BACK (you removed earlier)
     setChat((prev) => [...prev, msg]);
+
     setMessage("");
   };
 
@@ -86,14 +96,14 @@ export default function Room({ user }) {
 
   // EXIT ROOM
   const handleExitRoom = () => {
-    socket.disconnect();
+    socket.emit("leave_room", roomId);
     navigate("/");
   };
 
   // LOGOUT
   const handleLogout = async () => {
     await signOut(auth);
-    socket.disconnect();
+    socket.emit("leave_room", roomId);
     navigate("/login");
   };
 
