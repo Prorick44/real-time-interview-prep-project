@@ -16,7 +16,6 @@ function App() {
       console.log("AUTH STATE:", u);
       setUser(u || null);
     });
-    dsd;
     return unsub;
   }, []);
 
