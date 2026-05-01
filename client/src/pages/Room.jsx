@@ -1,4 +1,3 @@
-// KEEP IMPORTS SAME
 import { useEffect, useRef, useState } from "react";
 import { socket } from "../socket";
 import { useParams, useNavigate } from "react-router-dom";
@@ -21,12 +20,11 @@ export default function Room({ user }) {
 
   const [users, setUsers] = useState([]);
   const [typingUser, setTypingUser] = useState("");
-
   const [running, setRunning] = useState(false);
 
   const chatRef = useRef();
 
-  // JOIN ROOM
+  /* SOCKET */
   useEffect(() => {
     if (!roomId) return;
 
@@ -41,7 +39,7 @@ export default function Room({ user }) {
     socket.on("users_update", setUsers);
     socket.on("user_typing", (name) => {
       setTypingUser(name);
-      setTimeout(() => setTypingUser(""), 1500);
+      setTimeout(() => setTypingUser(""), 1200);
     });
 
     return () => {
@@ -53,12 +51,12 @@ export default function Room({ user }) {
     };
   }, [roomId]);
 
-  // SAVE CODE
+  /* SAVE CODE */
   useEffect(() => {
     localStorage.setItem(`code-${roomId}`, code);
   }, [code]);
 
-  // SCROLL CHAT
+  /* AUTO SCROLL CHAT */
   useEffect(() => {
     chatRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat]);
@@ -77,7 +75,7 @@ export default function Room({ user }) {
     };
 
     socket.emit("send_message", { roomId, msg });
-    setChat((prev) => [...prev, msg]);
+    setChat((p) => [...p, msg]);
     setMessage("");
   };
 
@@ -115,7 +113,6 @@ export default function Room({ user }) {
 
   const copyRoom = () => {
     navigator.clipboard.writeText(roomId);
-    alert("Room ID copied!");
   };
 
   const downloadCode = () => {
@@ -140,81 +137,79 @@ export default function Room({ user }) {
   };
 
   return (
-    <div style={styles.container}>
-      {/* LEFT PANEL */}
+    <div style={styles.wrapper}>
+      {/* LEFT SIDE */}
       <div style={styles.left}>
-        {/* HEADER */}
-        <div style={styles.header}>
+        {/* TOP BAR */}
+        <div style={styles.topbar}>
           <div>
-            <h2 style={styles.roomTitle}>Room: {roomId}</h2>
-            <p style={styles.userName}>{user?.displayName}</p>
-            <p style={styles.users}>👥 {users.length} online</p>
+            <h2 style={styles.title}>🚀 Room {roomId}</h2>
+            <div style={styles.sub}>
+              {user?.displayName} • 👥 {users.length} online
+            </div>
           </div>
 
-          <div style={styles.controls}>
-            <button style={styles.copyBtn} onClick={copyRoom}>
+          <div style={styles.actions}>
+            <button style={styles.btnBlue} onClick={copyRoom}>
               Copy
             </button>
 
             <select
+              style={styles.select}
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              style={styles.select}
             >
-              <option value="javascript">JS</option>
-              <option value="python">Python</option>
-              <option value="cpp">C++</option>
-              <option value="java">Java</option>
+              <option>javascript</option>
+              <option>python</option>
+              <option>cpp</option>
+              <option>java</option>
             </select>
 
-            <button style={styles.runBtn} onClick={run}>
-              {running ? "Running..." : "▶ Run"}
+            <button style={styles.btnGreen} onClick={run}>
+              {running ? "Running..." : "Run"}
             </button>
 
-            <button style={styles.downloadBtn} onClick={downloadCode}>
-              ⬇
+            <button style={styles.btnPurple} onClick={downloadCode}>
+              ↓
             </button>
-
-            <button style={styles.clearBtn} onClick={clearOutput}>
-              ✖
+            <button style={styles.btnOrange} onClick={clearOutput}>
+              Clear
             </button>
-
-            <button style={styles.exitBtn} onClick={handleExitRoom}>
+            <button style={styles.btnRed} onClick={handleExitRoom}>
               Exit
             </button>
-
-            <button style={styles.logoutBtn} onClick={handleLogout}>
+            <button style={styles.btnDark} onClick={handleLogout}>
               Logout
             </button>
           </div>
         </div>
 
         {/* EDITOR */}
-        <div style={styles.editorWrapper}>
+        <div style={styles.editor}>
           <CodeEditor code={code} setCode={handleCode} language={language} />
         </div>
 
         {/* OUTPUT */}
         <div style={styles.output}>
-          <div style={styles.outputHeader}>⚡ Output</div>
+          <div style={styles.outputTitle}>⚡ Output</div>
           <pre style={styles.outputText}>{output}</pre>
         </div>
       </div>
 
-      {/* CHAT PANEL */}
+      {/* CHAT */}
       <div style={styles.chat}>
-        <div style={styles.chatHeader}>💬 Chat</div>
+        <div style={styles.chatHeader}>💬 Live Chat</div>
 
         <div style={styles.chatBody}>
           {chat.map((c, i) => (
-            <div key={i} style={styles.message}>
+            <div key={i} style={styles.msg}>
               <span style={styles.name}>{c.name}</span>
-              <span style={styles.text}>{c.text}</span>
+              <span>{c.text}</span>
             </div>
           ))}
 
           {typingUser && (
-            <div style={styles.typing}>{typingUser} typing...</div>
+            <div style={styles.typing}>{typingUser} is typing...</div>
           )}
 
           <div ref={chatRef} />
@@ -224,14 +219,13 @@ export default function Room({ user }) {
           <input
             style={styles.input}
             value={message}
-            placeholder="Type message..."
+            placeholder="Message..."
             onChange={(e) => {
               setMessage(e.target.value);
               handleTyping();
             }}
           />
-
-          <button style={styles.sendBtn} onClick={sendMsg}>
+          <button style={styles.send} onClick={sendMsg}>
             Send
           </button>
         </div>
@@ -241,115 +235,61 @@ export default function Room({ user }) {
 }
 
 const styles = {
-  container: {
+  wrapper: {
     display: "flex",
     height: "100vh",
-    background: "linear-gradient(135deg, #0f172a, #020617)",
+    background: "radial-gradient(circle at top, #0f172a, #020617)",
     color: "white",
     fontFamily: "Inter, sans-serif",
   },
 
+  /* LEFT */
   left: {
     flex: 3,
     display: "flex",
     flexDirection: "column",
   },
 
-  header: {
+  topbar: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
-    padding: "15px 20px",
+    padding: "12px 16px",
     background: "rgba(2,6,23,0.8)",
-    backdropFilter: "blur(10px)",
+    backdropFilter: "blur(12px)",
     borderBottom: "1px solid #1f2937",
   },
 
-  roomTitle: {
-    margin: 0,
-    fontSize: "18px",
-  },
+  title: { margin: 0 },
+  sub: { fontSize: "12px", color: "#94a3b8" },
 
-  userName: {
-    margin: 0,
-    fontSize: "12px",
-    color: "#94a3b8",
-  },
-
-  users: {
-    margin: 0,
-    fontSize: "12px",
-    color: "#22c55e",
-  },
-
-  controls: {
+  actions: {
     display: "flex",
-    gap: 8,
+    gap: "6px",
+    flexWrap: "wrap",
     alignItems: "center",
   },
 
   select: {
-    padding: "6px",
+    padding: "5px",
     borderRadius: 6,
     background: "#111827",
     color: "white",
     border: "1px solid #374151",
   },
 
-  runBtn: {
-    padding: "6px 12px",
-    background: "#22c55e",
-    border: "none",
+  btnGreen: { background: "#22c55e", border: 0, padding: 6, borderRadius: 6 },
+  btnBlue: { background: "#3b82f6", border: 0, padding: 6, borderRadius: 6 },
+  btnPurple: { background: "#6366f1", border: 0, padding: 6, borderRadius: 6 },
+  btnOrange: { background: "#f59e0b", border: 0, padding: 6, borderRadius: 6 },
+  btnRed: { background: "#ef4444", border: 0, padding: 6, borderRadius: 6 },
+  btnDark: {
+    background: "#111827",
+    border: "1px solid #374151",
+    padding: 6,
     borderRadius: 6,
-    fontWeight: "bold",
-    cursor: "pointer",
   },
 
-  copyBtn: {
-    padding: "6px 10px",
-    background: "#3b82f6",
-    border: "none",
-    borderRadius: 6,
-    color: "white",
-    cursor: "pointer",
-  },
-
-  downloadBtn: {
-    padding: "6px 10px",
-    background: "#6366f1",
-    border: "none",
-    borderRadius: 6,
-    cursor: "pointer",
-    color: "white",
-  },
-
-  clearBtn: {
-    padding: "6px 10px",
-    background: "#f59e0b",
-    border: "none",
-    borderRadius: 6,
-    cursor: "pointer",
-    color: "black",
-  },
-
-  exitBtn: {
-    padding: "6px 10px",
-    background: "#f97316",
-    border: "none",
-    borderRadius: 6,
-    cursor: "pointer",
-  },
-
-  logoutBtn: {
-    padding: "6px 10px",
-    background: "#ef4444",
-    border: "none",
-    borderRadius: 6,
-    cursor: "pointer",
-    color: "white",
-  },
-
-  editorWrapper: {
+  editor: {
     flex: 1,
     borderBottom: "1px solid #1f2937",
   },
@@ -361,18 +301,10 @@ const styles = {
     overflow: "auto",
   },
 
-  outputHeader: {
-    color: "#22c55e",
-    marginBottom: 5,
-    fontWeight: "bold",
-  },
+  outputTitle: { color: "#22c55e", fontWeight: "bold" },
+  outputText: { color: "#22c55e" },
 
-  outputText: {
-    margin: 0,
-    color: "#22c55e",
-    fontSize: "13px",
-  },
-
+  /* CHAT */
   chat: {
     flex: 1,
     display: "flex",
@@ -383,8 +315,8 @@ const styles = {
 
   chatHeader: {
     padding: 12,
-    fontWeight: "bold",
     borderBottom: "1px solid #1f2937",
+    fontWeight: "bold",
   },
 
   chatBody: {
@@ -393,22 +325,11 @@ const styles = {
     overflowY: "auto",
   },
 
-  message: {
-    marginBottom: 8,
-  },
-
-  name: {
-    color: "#60a5fa",
-    marginRight: 6,
-    fontWeight: "bold",
-  },
-
-  text: {
-    color: "#e5e7eb",
-  },
+  msg: { marginBottom: 8 },
+  name: { color: "#60a5fa", marginRight: 6 },
 
   typing: {
-    fontSize: "12px",
+    fontSize: 12,
     color: "#9ca3af",
   },
 
@@ -427,12 +348,21 @@ const styles = {
     outline: "none",
   },
 
-  sendBtn: {
-    padding: "8px 12px",
+  send: {
     background: "#3b82f6",
-    border: "none",
+    border: 0,
     borderRadius: 6,
     color: "white",
-    cursor: "pointer",
+    padding: "8px 12px",
+  },
+
+  /* RESPONSIVE */
+  "@media (max-width: 900px)": {
+    wrapper: {
+      flexDirection: "column",
+    },
+    chat: {
+      height: "40vh",
+    },
   },
 };
