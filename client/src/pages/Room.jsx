@@ -12,6 +12,7 @@ export default function Room({ user }) {
   const [code, setCode] = useState(
     localStorage.getItem(`code-${roomId}`) || "",
   );
+
   const [language, setLanguage] = useState("javascript");
   const [output, setOutput] = useState("");
 
@@ -24,7 +25,7 @@ export default function Room({ user }) {
 
   const chatRef = useRef();
 
-  /* SOCKET */
+  /* SOCKET FIXED */
   useEffect(() => {
     if (!roomId) return;
 
@@ -34,12 +35,22 @@ export default function Room({ user }) {
     });
 
     socket.on("receive_code", setCode);
-    socket.on("receive_message", (msg) => setChat((prev) => [...prev, msg]));
+
+    socket.on("receive_message", (msg) => {
+      setChat((prev) => [...prev, msg]);
+    });
+
     socket.on("receive_output", setOutput);
-    socket.on("users_update", setUsers);
+
+    /* FIXED USERS SYNC (no duplicates) */
+    socket.on("users_update", (data) => {
+      const unique = Array.from(new Map(data.map((u) => [u.id, u])).values());
+      setUsers(unique);
+    });
+
     socket.on("user_typing", (name) => {
       setTypingUser(name);
-      setTimeout(() => setTypingUser(""), 1200);
+      setTimeout(() => setTypingUser(""), 1000);
     });
 
     return () => {
@@ -56,7 +67,7 @@ export default function Room({ user }) {
     localStorage.setItem(`code-${roomId}`, code);
   }, [code]);
 
-  /* AUTO SCROLL CHAT */
+  /* CHAT SCROLL */
   useEffect(() => {
     chatRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat]);
@@ -71,7 +82,7 @@ export default function Room({ user }) {
 
     const msg = {
       text: message,
-      name: user?.displayName,
+      name: user?.displayName || "User",
     };
 
     socket.emit("send_message", { roomId, msg });
@@ -111,6 +122,11 @@ export default function Room({ user }) {
     setRunning(false);
   };
 
+  /* FIXED CLEAR OUTPUT */
+  const clearOutput = () => {
+    setOutput(""); // force clean reset
+  };
+
   const copyRoom = () => {
     navigator.clipboard.writeText(roomId);
   };
@@ -122,8 +138,6 @@ export default function Room({ user }) {
     a.download = `code.${language}`;
     a.click();
   };
-
-  const clearOutput = () => setOutput("");
 
   const handleExitRoom = () => {
     socket.emit("leave_room", roomId);
@@ -138,19 +152,19 @@ export default function Room({ user }) {
 
   return (
     <div style={styles.wrapper}>
-      {/* LEFT SIDE */}
+      {/* LEFT */}
       <div style={styles.left}>
-        {/* TOP BAR */}
-        <div style={styles.topbar}>
+        {/* HEADER */}
+        <div style={styles.header}>
           <div>
-            <h2 style={styles.title}>🚀 Room {roomId}</h2>
-            <div style={styles.sub}>
+            <div style={styles.roomTitle}>🚀 Room {roomId}</div>
+            <div style={styles.subText}>
               {user?.displayName} • 👥 {users.length} online
             </div>
           </div>
 
           <div style={styles.actions}>
-            <button style={styles.btnBlue} onClick={copyRoom}>
+            <button style={styles.blueBtn} onClick={copyRoom}>
               Copy
             </button>
 
@@ -165,20 +179,25 @@ export default function Room({ user }) {
               <option>java</option>
             </select>
 
-            <button style={styles.btnGreen} onClick={run}>
+            <button style={styles.greenBtn} onClick={run}>
               {running ? "Running..." : "Run"}
             </button>
 
-            <button style={styles.btnPurple} onClick={downloadCode}>
+            <button style={styles.purpleBtn} onClick={downloadCode}>
               ↓
             </button>
-            <button style={styles.btnOrange} onClick={clearOutput}>
+
+            {/* FIXED */}
+            <button style={styles.orangeBtn} onClick={clearOutput}>
               Clear
             </button>
-            <button style={styles.btnRed} onClick={handleExitRoom}>
+
+            <button style={styles.redBtn} onClick={handleExitRoom}>
               Exit
             </button>
-            <button style={styles.btnDark} onClick={handleLogout}>
+
+            {/* FIXED COLOR */}
+            <button style={styles.logoutBtn} onClick={handleLogout}>
               Logout
             </button>
           </div>
@@ -203,13 +222,12 @@ export default function Room({ user }) {
         <div style={styles.chatBody}>
           {chat.map((c, i) => (
             <div key={i} style={styles.msg}>
-              <span style={styles.name}>{c.name}</span>
-              <span>{c.text}</span>
+              <b style={styles.name}>{c.name}</b> {c.text}
             </div>
           ))}
 
           {typingUser && (
-            <div style={styles.typing}>{typingUser} is typing...</div>
+            <div style={styles.typing}>{typingUser} typing...</div>
           )}
 
           <div ref={chatRef} />
@@ -219,13 +237,12 @@ export default function Room({ user }) {
           <input
             style={styles.input}
             value={message}
-            placeholder="Message..."
             onChange={(e) => {
               setMessage(e.target.value);
               handleTyping();
             }}
           />
-          <button style={styles.send} onClick={sendMsg}>
+          <button style={styles.sendBtn} onClick={sendMsg}>
             Send
           </button>
         </div>
@@ -240,62 +257,51 @@ const styles = {
     height: "100vh",
     background: "radial-gradient(circle at top, #0f172a, #020617)",
     color: "white",
-    fontFamily: "Inter, sans-serif",
+    fontFamily: "Inter",
   },
 
-  /* LEFT */
-  left: {
-    flex: 3,
-    display: "flex",
-    flexDirection: "column",
-  },
+  left: { flex: 3, display: "flex", flexDirection: "column" },
 
-  topbar: {
+  header: {
     display: "flex",
     justifyContent: "space-between",
-    padding: "12px 16px",
-    background: "rgba(2,6,23,0.8)",
+    padding: "12px",
+    background: "rgba(2,6,23,0.85)",
     backdropFilter: "blur(12px)",
     borderBottom: "1px solid #1f2937",
   },
 
-  title: { margin: 0 },
-  sub: { fontSize: "12px", color: "#94a3b8" },
+  roomTitle: { fontSize: 18, fontWeight: "bold" },
+  subText: { fontSize: 12, color: "#94a3b8" },
 
-  actions: {
-    display: "flex",
-    gap: "6px",
-    flexWrap: "wrap",
-    alignItems: "center",
-  },
+  actions: { display: "flex", gap: 6, flexWrap: "wrap" },
 
   select: {
-    padding: "5px",
-    borderRadius: 6,
     background: "#111827",
     color: "white",
-    border: "1px solid #374151",
-  },
-
-  btnGreen: { background: "#22c55e", border: 0, padding: 6, borderRadius: 6 },
-  btnBlue: { background: "#3b82f6", border: 0, padding: 6, borderRadius: 6 },
-  btnPurple: { background: "#6366f1", border: 0, padding: 6, borderRadius: 6 },
-  btnOrange: { background: "#f59e0b", border: 0, padding: 6, borderRadius: 6 },
-  btnRed: { background: "#ef4444", border: 0, padding: 6, borderRadius: 6 },
-  btnDark: {
-    background: "#111827",
-    border: "1px solid #374151",
-    padding: 6,
     borderRadius: 6,
+    padding: 5,
   },
 
-  editor: {
-    flex: 1,
-    borderBottom: "1px solid #1f2937",
+  blueBtn: { background: "#3b82f6", padding: 6, border: 0, borderRadius: 6 },
+  greenBtn: { background: "#22c55e", padding: 6, border: 0, borderRadius: 6 },
+  purpleBtn: { background: "#6366f1", padding: 6, border: 0, borderRadius: 6 },
+  orangeBtn: { background: "#f59e0b", padding: 6, border: 0, borderRadius: 6 },
+  redBtn: { background: "#ef4444", padding: 6, border: 0, borderRadius: 6 },
+
+  /* FIXED logout */
+  logoutBtn: {
+    background: "linear-gradient(135deg,#ef4444,#b91c1c)",
+    padding: 6,
+    border: 0,
+    borderRadius: 6,
+    fontWeight: "bold",
   },
+
+  editor: { flex: 1 },
 
   output: {
-    height: 160,
+    height: 150,
     background: "#020617",
     padding: 10,
     overflow: "auto",
@@ -304,7 +310,6 @@ const styles = {
   outputTitle: { color: "#22c55e", fontWeight: "bold" },
   outputText: { color: "#22c55e" },
 
-  /* CHAT */
   chat: {
     flex: 1,
     display: "flex",
@@ -313,32 +318,17 @@ const styles = {
     background: "#020617",
   },
 
-  chatHeader: {
-    padding: 12,
-    borderBottom: "1px solid #1f2937",
-    fontWeight: "bold",
-  },
+  chatHeader: { padding: 10, borderBottom: "1px solid #1f2937" },
 
-  chatBody: {
-    flex: 1,
-    padding: 10,
-    overflowY: "auto",
-  },
+  chatBody: { flex: 1, padding: 10, overflowY: "auto" },
 
-  msg: { marginBottom: 8 },
-  name: { color: "#60a5fa", marginRight: 6 },
+  msg: { marginBottom: 6 },
 
-  typing: {
-    fontSize: 12,
-    color: "#9ca3af",
-  },
+  name: { color: "#60a5fa" },
 
-  chatInput: {
-    display: "flex",
-    padding: 10,
-    gap: 5,
-    borderTop: "1px solid #1f2937",
-  },
+  typing: { fontSize: 12, color: "#9ca3af" },
+
+  chatInput: { display: "flex", padding: 10, gap: 5 },
 
   input: {
     flex: 1,
@@ -348,21 +338,11 @@ const styles = {
     outline: "none",
   },
 
-  send: {
+  sendBtn: {
     background: "#3b82f6",
     border: 0,
     borderRadius: 6,
     color: "white",
     padding: "8px 12px",
-  },
-
-  /* RESPONSIVE */
-  "@media (max-width: 900px)": {
-    wrapper: {
-      flexDirection: "column",
-    },
-    chat: {
-      height: "40vh",
-    },
   },
 };
