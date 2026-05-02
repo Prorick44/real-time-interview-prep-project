@@ -102,11 +102,14 @@ export default function Room({ user }) {
     setOutput("Running...");
 
     try {
-      const res = await fetch("http://localhost:5000/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language }),
-      });
+      const res = await fetch(
+        "https://real-time-interview-prep-project.onrender.com",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code, language }),
+        },
+      );
 
       const data = await res.json();
       setOutput(data.output);
