@@ -103,7 +103,7 @@ export default function Room({ user }) {
 
     try {
       const res = await fetch(
-        "https://real-time-interview-prep-project.onrender.com",
+        "https://real-time-interview-prep-project.onrender.com/run",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
